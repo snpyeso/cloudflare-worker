@@ -1,6 +1,7 @@
 name = "vertex-api-worker"
+main = "src/index.js"
 compatibility_date = "2026-06-26"
-pages_build_output_dir = "dist"
+workers_dev = true
 
 [vars]
 VERTEX_LOCATION = "global"

@@ -27,7 +27,43 @@ Anthropic 客户端也可以使用：
 x-api-key: your-api-token
 ```
 
-## 最简单部署方式
+## Cloudflare Pages 连接 GitHub
+
+这个仓库默认支持 Cloudflare Pages 部署，部署后可以使用 `*.pages.dev` 域名。
+
+Cloudflare Pages 构建设置：
+
+```text
+Build command:
+npm run deploy
+
+Build output directory:
+dist
+```
+
+`npm run deploy` 这里只负责生成 Pages 输出文件，不会调用 `wrangler deploy`，因此不需要 `CLOUDFLARE_API_TOKEN`。
+
+在 Pages 项目的 `Settings` -> `Environment variables` 里添加运行时变量：
+
+```text
+API_TOKEN=your-api-token
+VERTEX_SERVICE_ACCOUNT_JSON=完整 Google 服务账号 JSON
+```
+
+可选：
+
+```text
+VERTEX_LOCATION=global
+VERTEX_MODELS=gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview
+```
+
+部署后 base URL：
+
+```text
+https://你的-pages项目.pages.dev/v1
+```
+
+## Worker CLI 部署方式
 
 Windows PowerShell 里执行：
 
@@ -127,7 +163,7 @@ npm run dev
 
 ```bash
 npm install
-npm run deploy
+npm run deploy:worker
 ```
 
 部署后把客户端 base URL 改成 Worker 地址即可，例如：
@@ -136,21 +172,21 @@ npm run deploy
 https://vertex-api-worker.<your-subdomain>.workers.dev/v1
 ```
 
-## Cloudflare 连接 GitHub
+## Worker 连接 GitHub
 
-如果 Cloudflare 构建设置里需要填写命令：
+如果你是 Worker 项目而不是 Pages 项目，构建设置里需要填写：
 
 ```bash
-npm run deploy
+npm run deploy:worker
 ```
 
 或者：
 
 ```bash
-npx wrangler deploy
+npx wrangler deploy --config wrangler.worker.toml
 ```
 
-不要填写裸命令 `wrangler deploy`，Cloudflare 构建环境里通常没有全局安装的 `wrangler`。
+Worker GitHub 构建需要 `CLOUDFLARE_API_TOKEN`。如果你使用 Pages 项目和 `*.pages.dev` 域名，请使用上面的 Cloudflare Pages 配置。
 
 ## 注意
 
