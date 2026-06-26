@@ -136,6 +136,22 @@ npm run deploy
 https://vertex-api-worker.<your-subdomain>.workers.dev/v1
 ```
 
+## Cloudflare 连接 GitHub
+
+如果 Cloudflare 构建设置里需要填写命令：
+
+```bash
+npm run deploy
+```
+
+或者：
+
+```bash
+npx wrangler deploy
+```
+
+不要填写裸命令 `wrangler deploy`，Cloudflare 构建环境里通常没有全局安装的 `wrangler`。
+
 ## 注意
 
 Cloudflare Worker 是无状态环境。本项目会尽量在响应里保留 Gemini 的 `thought_signature`，并在同一个 Worker isolate 内做短期缓存；但如果客户端完全丢弃工具调用扩展字段，且 Worker isolate 被切换，复杂多轮工具调用仍可能触发 Vertex 对 `thought_signature` 的校验问题。
