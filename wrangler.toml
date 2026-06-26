@@ -1,0 +1,8 @@
+name = "vertex-api-worker"
+main = "src/index.js"
+compatibility_date = "2026-06-26"
+workers_dev = true
+
+[vars]
+VERTEX_LOCATION = "global"
+VERTEX_MODELS = "gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview"

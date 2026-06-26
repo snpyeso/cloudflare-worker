@@ -1,0 +1,16 @@
+{
+  "name": "vertex-api-cloudflare-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "bundle": "esbuild src/index.js --bundle --format=esm --platform=browser --target=es2022 --outfile=dist/worker.js",
+    "check": "node --check src/index.js && node --check src/openaiGeminiMapper.js && node --check src/anthropicGeminiMapper.js && node --check src/vertexClient.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0",
+    "wrangler": "^4.0.0"
+  }
+}
