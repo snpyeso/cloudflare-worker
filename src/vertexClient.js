@@ -1,7 +1,7 @@
 import { bytesToBase64Url, pemToArrayBuffer, utf8ToBase64Url } from './encoding.js';
 
 const VERTEX_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
-const TOKEN_URL = 'https://www.googleapis.com/oauth2/v4/token';
+const TOKEN_URL='https://oauth2.googleapis.com/token';
 const DEFAULT_RETRY_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAYS_MS = [1000, 5000, 15000];
 const RETRY_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
@@ -49,6 +49,14 @@ export class VertexClient {
     let lastResponse = null;
     let lastError = null;
 
+    let signal = options.signal;
+    let timeoutId;
+    if (!signal) {
+      const controller = new AbortController();
+      signal = controller.signal;
+      timeoutId = setTimeout(() => controller.abort(new Error("Timeout reached (180s)")), 180000);
+    }
+    
     for (let attempt = 0; attempt <= DEFAULT_RETRY_ATTEMPTS; attempt += 1) {
       let response;
       try {
@@ -59,12 +67,13 @@ export class VertexClient {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          signal: options.signal,
+          signal: signal,
           body: JSON.stringify(body)
         });
       } catch (error) {
-        if (options.signal?.aborted || attempt >= DEFAULT_RETRY_ATTEMPTS) {
-          throw error;
+        if (signal?.aborted || attempt >= DEFAULT_RETRY_ATTEMPTS) {
+          if (timeoutId) clearTimeout(timeoutId);
+          throw lastError || error;
         }
 
         lastError = error;
@@ -73,6 +82,7 @@ export class VertexClient {
       }
 
       if (!shouldRetry(response, attempt)) {
+        if (timeoutId) clearTimeout(timeoutId);
         return response;
       }
 
@@ -81,6 +91,7 @@ export class VertexClient {
       await sleep(retryDelayMs(response, attempt));
     }
 
+    if (timeoutId) clearTimeout(timeoutId);
     if (lastError) throw lastError;
     return lastResponse;
   }

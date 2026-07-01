@@ -135,6 +135,7 @@ async function readJson(request) {
 function linkedAbortController(request) {
   const controller = new AbortController();
   request.signal?.addEventListener('abort', () => controller.abort(), { once: true });
+  setTimeout(() => controller.abort(new Error("Timeout reached (180s)")), 180000);
   return controller;
 }
 

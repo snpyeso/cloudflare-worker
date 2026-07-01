@@ -997,7 +997,7 @@ function streamOpenAiResponse(model, stream, abortController) {
 
 // src/vertexClient.js
 var VERTEX_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
-var TOKEN_URL = "https://www.googleapis.com/oauth2/v4/token";
+var TOKEN_URL = "https://oauth2.googleapis.com/token";
 var DEFAULT_RETRY_ATTEMPTS = 3;
 var DEFAULT_RETRY_DELAYS_MS = [1e3, 5e3, 15e3];
 var RETRY_STATUS_CODES = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
@@ -1036,6 +1036,13 @@ var VertexClient = class {
   async fetchVertex(endpoint, body, options = {}) {
     let lastResponse = null;
     let lastError = null;
+    let signal = options.signal;
+    let timeoutId;
+    if (!signal) {
+      const controller = new AbortController();
+      signal = controller.signal;
+      timeoutId = setTimeout(() => controller.abort(new Error("Timeout reached (180s)")), 18e4);
+    }
     for (let attempt = 0; attempt <= DEFAULT_RETRY_ATTEMPTS; attempt += 1) {
       let response;
       try {
@@ -1046,18 +1053,20 @@ var VertexClient = class {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          signal: options.signal,
+          signal,
           body: JSON.stringify(body)
         });
       } catch (error) {
-        if (options.signal?.aborted || attempt >= DEFAULT_RETRY_ATTEMPTS) {
-          throw error;
+        if (signal?.aborted || attempt >= DEFAULT_RETRY_ATTEMPTS) {
+          if (timeoutId) clearTimeout(timeoutId);
+          throw lastError || error;
         }
         lastError = error;
         await sleep(retryDelayMs(null, attempt));
         continue;
       }
       if (!shouldRetry(response, attempt)) {
+        if (timeoutId) clearTimeout(timeoutId);
         return response;
       }
       lastResponse = response;
@@ -1065,6 +1074,7 @@ var VertexClient = class {
       });
       await sleep(retryDelayMs(response, attempt));
     }
+    if (timeoutId) clearTimeout(timeoutId);
     if (lastError) throw lastError;
     return lastResponse;
   }
@@ -1305,6 +1315,7 @@ async function readJson(request) {
 function linkedAbortController(request) {
   const controller = new AbortController();
   request.signal?.addEventListener("abort", () => controller.abort(), { once: true });
+  setTimeout(() => controller.abort(new Error("Timeout reached (180s)")), 18e4);
   return controller;
 }
 function restoreMissingThoughtSignatures(vertexBody) {
