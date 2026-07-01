@@ -1,6 +1,6 @@
 API_TOKEN="your-api-token"
 VERTEX_LOCATION="global"
-VERTEX_MODELS="gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview"
+VERTEX_MODELS="gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview,gemini-3.5-flash"
 
 # 推荐填完整服务账号 JSON，部署时请使用 wrangler secret put。
 VERTEX_SERVICE_ACCOUNT_JSON='{"project_id":"your-project-id","client_email":"service-account@project.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}'

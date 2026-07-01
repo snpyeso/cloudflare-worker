@@ -1,6 +1,6 @@
 import { normalizePrivateKey } from './encoding.js';
 
-const DEFAULT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.1-pro-preview'];
+const DEFAULT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.1-pro-preview', 'gemini-3.5-flash'];
 
 export function getWorkerConfig(env) {
   const serviceAccount = parseJson(env.VERTEX_SERVICE_ACCOUNT_JSON || env.GOOGLE_SERVICE_ACCOUNT_JSON || '') || {};
@@ -23,21 +23,21 @@ export function getWorkerConfig(env) {
   };
 }
 
-export function assertVertexConfigured(config) {
+export function assertVertexConfigured(config, locale) {
   const { projectId, clientEmail, privateKey } = config.vertex;
   if (!projectId || !clientEmail || !privateKey) {
-    const error = new Error('Vertex AI is not configured. Set VERTEX_SERVICE_ACCOUNT_JSON or VERTEX_PROJECT_ID, VERTEX_CLIENT_EMAIL, and VERTEX_PRIVATE_KEY.');
+    const error = new Error(locale ? locale.errors.vertexNotConfigured : 'Vertex AI is not configured. Set VERTEX_SERVICE_ACCOUNT_JSON or VERTEX_PROJECT_ID, VERTEX_CLIENT_EMAIL, and VERTEX_PRIVATE_KEY.');
     error.status = 500;
     throw error;
   }
 }
 
-export function resolveModel(config, requestedModel) {
+export function resolveModel(config, requestedModel, locale) {
   const model = String(requestedModel || '').trim();
   if (!model) return config.vertex.models[0];
   if (config.allowAnyVertexModel || config.vertex.models.includes(model)) return model;
 
-  const error = new Error(`Model '${model}' is not configured. Set VERTEX_MODELS or enable ALLOW_ANY_VERTEX_MODEL.`);
+  const error = new Error(locale ? locale.errors.modelNotConfigured(model) : `Model '${model}' is not configured. Set VERTEX_MODELS or enable ALLOW_ANY_VERTEX_MODEL.`);
   error.status = 400;
   throw error;
 }

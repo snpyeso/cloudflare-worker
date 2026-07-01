@@ -54,7 +54,7 @@ VERTEX_SERVICE_ACCOUNT_JSON=完整 Google 服务账号 JSON
 
 ```text
 VERTEX_LOCATION=global
-VERTEX_MODELS=gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview
+VERTEX_MODELS=gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview,gemini-3.5-flash,gemini-3.5-flash
 ```
 
 部署后 base URL：
@@ -111,7 +111,7 @@ dist/worker.js
 
 - `VERTEX_SERVICE_ACCOUNT_JSON`，类型选 Secret，值填完整服务账号 JSON
 - `API_TOKEN`，必填，类型建议选 Secret
-- `VERTEX_MODELS`，可选，例如 `gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview`
+- `VERTEX_MODELS`，可选，例如 `gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview,gemini-3.5-flash,gemini-3.5-flash`
 - `VERTEX_LOCATION`，可选，默认 `global`
 
 ## Cloudflare Secrets
@@ -141,7 +141,7 @@ npx wrangler secret put VERTEX_LOCATION
 `VERTEX_MODELS` 使用逗号分隔，例如：
 
 ```text
-gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview
+gemini-2.5-flash,gemini-2.5-pro,gemini-3.1-pro-preview,gemini-3.5-flash
 ```
 
 ## 本地运行

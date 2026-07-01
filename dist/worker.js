@@ -602,7 +602,7 @@ function streamAnthropicResponse(model, stream, abortController) {
 }
 
 // src/config.js
-var DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview"];
+var DEFAULT_MODELS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-3.5-flash"];
 function getWorkerConfig(env) {
   const serviceAccount = parseJson(env.VERTEX_SERVICE_ACCOUNT_JSON || env.GOOGLE_SERVICE_ACCOUNT_JSON || "") || {};
   const models = splitLines(env.VERTEX_MODELS || env.MODELS);
@@ -622,19 +622,19 @@ function getWorkerConfig(env) {
     allowAnyVertexModel: truthy(env.ALLOW_ANY_VERTEX_MODEL)
   };
 }
-function assertVertexConfigured(config) {
+function assertVertexConfigured(config, locale) {
   const { projectId, clientEmail, privateKey } = config.vertex;
   if (!projectId || !clientEmail || !privateKey) {
-    const error = new Error("Vertex AI is not configured. Set VERTEX_SERVICE_ACCOUNT_JSON or VERTEX_PROJECT_ID, VERTEX_CLIENT_EMAIL, and VERTEX_PRIVATE_KEY.");
+    const error = new Error(locale ? locale.errors.vertexNotConfigured : "Vertex AI is not configured. Set VERTEX_SERVICE_ACCOUNT_JSON or VERTEX_PROJECT_ID, VERTEX_CLIENT_EMAIL, and VERTEX_PRIVATE_KEY.");
     error.status = 500;
     throw error;
   }
 }
-function resolveModel(config, requestedModel) {
+function resolveModel(config, requestedModel, locale) {
   const model = String(requestedModel || "").trim();
   if (!model) return config.vertex.models[0];
   if (config.allowAnyVertexModel || config.vertex.models.includes(model)) return model;
-  const error = new Error(`Model '${model}' is not configured. Set VERTEX_MODELS or enable ALLOW_ANY_VERTEX_MODEL.`);
+  const error = new Error(locale ? locale.errors.modelNotConfigured(model) : `Model '${model}' is not configured. Set VERTEX_MODELS or enable ALLOW_ANY_VERTEX_MODEL.`);
   error.status = 400;
   throw error;
 }
@@ -1204,11 +1204,58 @@ async function* parseSseStream(body) {
   }
 }
 
+// src/locale.js
+var zhCN = {
+  ok: true,
+  name: "vertex-api-cloudflare-worker",
+  endpoints: ["/health", "/v1/models", "/v1/chat/completions", "/v1/messages"],
+  rootDescription: "Vertex API \u4EE3\u7406 Workers \u8FD0\u884C\u4E2D",
+  health: {
+    provider: "vertex",
+    configured: "\u5DF2\u914D\u7F6E",
+    notConfigured: "\u672A\u914D\u7F6E",
+    projectId: "\u9879\u76EE ID",
+    location: "\u533A\u57DF",
+    models: "\u6A21\u578B\u5217\u8868"
+  },
+  errors: {
+    notFound: "\u672A\u627E\u5230",
+    notFoundType: "not_found_error",
+    invalidApiKey: "API \u5BC6\u94A5\u65E0\u6548",
+    invalidJson: "\u8BF7\u6C42\u4F53 JSON \u683C\u5F0F\u9519\u8BEF",
+    vertexNotConfigured: "Vertex AI \u672A\u914D\u7F6E\u3002\u8BF7\u8BBE\u7F6E VERTEX_SERVICE_ACCOUNT_JSON \u6216 VERTEX_PROJECT_ID\u3001VERTEX_CLIENT_EMAIL \u548C VERTEX_PRIVATE_KEY\u3002",
+    modelNotConfigured: (model) => `\u6A21\u578B '${model}' \u672A\u914D\u7F6E\u3002\u8BF7\u8BBE\u7F6E VERTEX_MODELS \u6216\u542F\u7528 ALLOW_ANY_VERTEX_MODEL\u3002`,
+    internalError: "\u670D\u52A1\u5668\u5185\u90E8\u9519\u8BEF",
+    timeout: "\u8BF7\u6C42\u8D85\u65F6\uFF08180 \u79D2\uFF09"
+  },
+  html: {
+    title: "Vertex API Worker",
+    running: "Vertex API Worker \u8FD0\u884C\u4E2D\u3002\u8BF7\u4F7F\u7528 /health \u6216 /v1 \u7AEF\u70B9\u3002"
+  }
+};
+var SUPPORTED = {
+  "zh-CN": zhCN,
+  "zh": zhCN,
+  "zh-TW": zhCN,
+  "zh-HK": zhCN
+};
+function getLocale(request) {
+  const acceptLanguage = request?.headers?.get("Accept-Language") || "";
+  for (const lang of acceptLanguage.split(",")) {
+    const code = lang.trim().split(";")[0];
+    if (SUPPORTED[code]) return SUPPORTED[code];
+    const base = code.split("-")[0];
+    if (SUPPORTED[base]) return SUPPORTED[base];
+  }
+  return zhCN;
+}
+
 // src/index.js
 var index_default = {
   async fetch(request, env) {
     const url = new URL(request.url);
     const config = getWorkerConfig(env);
+    const locale = getLocale(request);
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -1216,23 +1263,26 @@ var index_default = {
       if (request.method === "GET" && url.pathname === "/") {
         return jsonResponse({
           ok: true,
-          name: "vertex-api-cloudflare-worker",
-          endpoints: ["/health", "/v1/models", "/v1/chat/completions", "/v1/messages"]
+          name: locale.name,
+          description: locale.rootDescription,
+          endpoints: locale.endpoints
         });
       }
       if (request.method === "GET" && url.pathname === "/health") {
+        const configured = Boolean(config.vertex.projectId && config.vertex.clientEmail && config.vertex.privateKey);
         return jsonResponse({
           ok: true,
-          provider: "vertex",
-          configured: Boolean(config.vertex.projectId && config.vertex.clientEmail && config.vertex.privateKey),
+          provider: locale.health.provider,
+          configured,
+          status: configured ? locale.health.configured : locale.health.notConfigured,
           project_id: config.vertex.projectId || null,
           location: config.vertex.location,
           models: config.vertex.models
         });
       }
       if (url.pathname.startsWith("/v1/")) {
-        assertApiToken(config, request);
-        assertVertexConfigured(config);
+        assertApiToken(config, request, locale);
+        assertVertexConfigured(config, locale);
       }
       if (request.method === "GET" && url.pathname === "/v1/models") {
         return jsonResponse({
@@ -1246,24 +1296,24 @@ var index_default = {
         });
       }
       if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
-        return await handleOpenAiChat(request, config);
+        return await handleOpenAiChat(request, config, locale);
       }
       if (request.method === "POST" && url.pathname === "/v1/messages") {
-        return await handleAnthropicMessages(request, config);
+        return await handleAnthropicMessages(request, config, locale);
       }
-      return jsonResponse({ error: { message: "Not found", type: "not_found_error" } }, 404);
+      return jsonResponse({ error: { message: locale.errors.notFound, type: locale.errors.notFoundType } }, 404);
     } catch (error) {
-      return errorResponse(error, url.pathname === "/v1/messages");
+      return errorResponse(error, url.pathname === "/v1/messages", locale);
     }
   }
 };
-async function handleOpenAiChat(request, config) {
-  const body = await readJson(request);
-  const model = resolveModel(config, body.model);
+async function handleOpenAiChat(request, config, locale) {
+  const body = await readJson(request, locale);
+  const model = resolveModel(config, body.model, locale);
   const vertexBody = openAiToGemini(body, modelOverrides(config, model));
   restoreMissingThoughtSignatures(vertexBody);
   const client = new VertexClient(config.vertex);
-  const abortController = linkedAbortController(request);
+  const abortController = linkedAbortController(request, locale);
   if (body.stream) {
     return streamOpenAiResponse(
       model,
@@ -1274,13 +1324,13 @@ async function handleOpenAiChat(request, config) {
   const vertexResponse = await client.generateContent(model, vertexBody, { signal: abortController.signal });
   return jsonResponse(geminiToOpenAi(vertexResponse, model));
 }
-async function handleAnthropicMessages(request, config) {
-  const body = await readJson(request);
-  const model = resolveModel(config, body.model);
+async function handleAnthropicMessages(request, config, locale) {
+  const body = await readJson(request, locale);
+  const model = resolveModel(config, body.model, locale);
   const vertexBody = anthropicToGemini(body, modelOverrides(config, model));
   restoreMissingThoughtSignatures(vertexBody);
   const client = new VertexClient(config.vertex);
-  const abortController = linkedAbortController(request);
+  const abortController = linkedAbortController(request, locale);
   if (body.stream) {
     return streamAnthropicResponse(
       model,
@@ -1291,31 +1341,31 @@ async function handleAnthropicMessages(request, config) {
   const vertexResponse = await client.generateContent(model, vertexBody, { signal: abortController.signal });
   return jsonResponse(geminiToAnthropic(vertexResponse, model));
 }
-function assertApiToken(config, request) {
+function assertApiToken(config, request, locale) {
   const expected = config.apiToken;
   const authorization = request.headers.get("authorization") || "";
   const bearer = authorization.replace(/^Bearer\s+/i, "").trim();
   const apiKey = request.headers.get("x-api-key") || "";
   const actual = bearer || apiKey.trim();
   if (!expected || actual !== expected) {
-    const error = new Error("Invalid API key");
+    const error = new Error(locale.errors.invalidApiKey);
     error.status = 401;
     throw error;
   }
 }
-async function readJson(request) {
+async function readJson(request, locale) {
   try {
     return await request.json();
   } catch {
-    const error = new Error("Invalid JSON request body");
+    const error = new Error(locale.errors.invalidJson);
     error.status = 400;
     throw error;
   }
 }
-function linkedAbortController(request) {
+function linkedAbortController(request, locale) {
   const controller = new AbortController();
   request.signal?.addEventListener("abort", () => controller.abort(), { once: true });
-  setTimeout(() => controller.abort(new Error("Timeout reached (180s)")), 18e4);
+  setTimeout(() => controller.abort(new Error(locale.errors.timeout)), 18e4);
   return controller;
 }
 function restoreMissingThoughtSignatures(vertexBody) {
@@ -1335,17 +1385,18 @@ function jsonResponse(payload, status = 200) {
     })
   });
 }
-function errorResponse(error, anthropic = false) {
+function errorResponse(error, anthropic = false, locale) {
   const status = error.status || 500;
+  const message = error.message || locale.errors.internalError;
   const payload = anthropic ? {
     type: "error",
     error: {
       type: status === 401 ? "authentication_error" : status === 400 ? "invalid_request_error" : "api_error",
-      message: error.message || "Internal server error"
+      message
     }
   } : {
     error: {
-      message: error.message || "Internal server error",
+      message,
       type: status === 401 ? "authentication_error" : status === 400 ? "invalid_request_error" : "api_error",
       details: error.details
     }
